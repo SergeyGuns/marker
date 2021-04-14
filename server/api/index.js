@@ -13,11 +13,21 @@ async function initAPI(routerRoot) {
   }));
   const routeFiles = paths
     .map(({ path, router }) =>
-      fs.readdirSync(path).map((filename) => ({
-        pathForAsyncRequire: path + "/" + filename.replace(".js", ""),
-        middlewareRoute: "/" + router + "/" + filename.split(".")[1],
-        method: filename.split(".")[0],
-      }))
+      fs.readdirSync(path).map((filename) => {
+        const method = filename.split(".")[0];
+        const fileNameWithoutMethod = filename.split(".")[1];
+        const middlewareRoute =
+          "/" +
+          router +
+          "/" +
+          fileNameWithoutMethod +
+          getParams(filename, method);
+        return {
+          pathForAsyncRequire: path + "/" + filename.replace(".js", ""),
+          middlewareRoute,
+          method,
+        };
+      })
     )
     .flat();
 
@@ -27,9 +37,20 @@ async function initAPI(routerRoot) {
     routes.push({ callback, ...routeFile });
   }
 
-  return routes.map(({ middlewareRoute, callback, method }) => (database) =>
-    router[method](middlewareRoute, callback(database))
-  );
+  return routes.map(({ middlewareRoute, callback, method }) => (database) => {
+    console.log({ middlewareRoute, callback, method });
+    return router[method](middlewareRoute, callback(database));
+  });
+}
+
+function getParams(filename, method) {
+  const result = filename
+    .split(".")
+    .filter((partName) => partName.indexOf("by_") !== -1)
+    .reduce((acc, curr) => (acc += "/" + curr.replace("by_", ":")), "");
+
+  if (method !== "get" && !!result) throw new Error(filename);
+  return result;
 }
 
 module.exports = { initAPI };
